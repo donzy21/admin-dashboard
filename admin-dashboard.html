@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Sports | Admin Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23121c26'/%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='%2300d49a' stroke-width='4'/%3E%3Ctext x='32' y='39' text-anchor='middle' font-family='Arial,Helvetica,sans-serif' font-size='22' font-weight='700' fill='%23e8f0f7'%3EGS%3C/text%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0a1016;
+      --panel: #121c26;
+      --panel-soft: #182433;
+      --border: #2b3c4f;
+      --text: #e8f0f7;
+      --muted: #90a6bb;
+      --primary: #00d49a;
+      --danger: #ff5c70;
+      --warn: #ffba4a;
+      --ok: #58d66f;
+      --radius: 14px;
+      --shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+      --font-display: "Bebas Neue", sans-serif;
+      --font-body: "DM Sans", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      color: var(--text);
+      background:
+        radial-gradient(80rem 40rem at -10% -10%, rgba(0, 212, 154, 0.16), transparent 55%),
+        radial-gradient(70rem 34rem at 110% 0%, rgba(30, 160, 255, 0.18), transparent 56%),
+        linear-gradient(180deg, #091019 0%, #0d141d 50%, #0a1016 100%);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      letter-spacing: 1.2px;
+      font-size: 42px;
+      line-height: 1;
+    }
+
+    .brand p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--danger);
+      box-shadow: 0 0 0 0 rgba(255, 92, 112, 0.5);
+      animation: pulse 1.8s infinite;
+    }
+
+    .status-dot.connected {
+      background: var(--ok);
+      box-shadow: 0 0 0 0 rgba(88, 214, 111, 0.45);
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(255, 92, 112, 0.5); }
+      70% { box-shadow: 0 0 0 8px rgba(255, 92, 112, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 92, 112, 0); }
+    }
+
+    .badge {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(0, 0, 0, 0.24);
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); border-color: #3f5870; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn.primary { background: linear-gradient(135deg, #00d49a, #14b8d4); color: #061217; border: none; }
+    .btn.warn { background: rgba(255, 186, 74, 0.13); color: var(--warn); border-color: rgba(255, 186, 74, 0.34); }
+    .btn.danger { background: rgba(255, 92, 112, 0.13); color: var(--danger); border-color: rgba(255, 92, 112, 0.32); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, rgba(17, 25, 35, 0.94), rgba(13, 20, 29, 0.94));
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .stat-card span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .stat-card strong { font-size: 28px; line-height: 1; letter-spacing: 0.3px; }
+
+    .login-card {
+      max-width: 420px;
+      margin: 8vh auto;
+      padding: 24px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: linear-gradient(160deg, rgba(17, 25, 35, 0.94), rgba(13, 20, 29, 0.94));
+      box-shadow: var(--shadow);
+      display: none;
+    }
+
+    .login-card.visible { display: block; }
+
+    .login-card h2 {
+      margin: 0 0 6px;
+      font-family: var(--font-display);
+      letter-spacing: 0.8px;
+      font-size: 34px;
+    }
+
+    .login-card p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .field label { font-size: 12px; color: var(--muted); }
+    .field input, .search {
+      border: 1px solid var(--border);
+      background: #0f1822;
+      border-radius: 10px;
+      color: var(--text);
+      padding: 11px 12px;
+      font-size: 14px;
+    }
+
+    .error-msg { min-height: 20px; font-size: 12px; color: var(--danger); }
+
+    .layout {
+      display: none;
+      grid-template-columns: minmax(360px, 0.95fr) minmax(320px, 0.8fr) minmax(360px, 1fr);
+      gap: 14px;
+    }
+
+    .layout.visible { display: grid; }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, rgba(17, 25, 35, 0.94), rgba(13, 20, 29, 0.94));
+      box-shadow: var(--shadow);
+      min-height: 68vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-title { margin: 0; font-size: 16px; }
+
+    .rider-list {
+      overflow: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .rider-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(24, 36, 51, 0.56);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .rider-card.active { border-color: rgba(0, 212, 154, 0.56); background: rgba(0, 212, 154, 0.09); }
+
+    .rider-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .rider-name { font-size: 15px; font-weight: 700; }
+    .rider-phone { font-size: 12px; color: var(--muted); }
+
+    .pill {
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-weight: 700;
+    }
+
+    .pill.pending { background: rgba(255, 186, 74, 0.17); color: var(--warn); }
+    .pill.approved { background: rgba(88, 214, 111, 0.18); color: var(--ok); }
+    .pill.rejected { background: rgba(255, 92, 112, 0.16); color: var(--danger); }
+
+    .rider-meta { font-size: 12px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .rider-actions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .tiny { padding: 7px 8px; font-size: 11px; }
+
+    .details {
+      padding: 16px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 8px;
+      border-bottom: 1px dashed rgba(144, 166, 187, 0.2);
+      padding-bottom: 8px;
+    }
+
+    .kv span { color: var(--muted); font-size: 12px; }
+    .kv strong { font-size: 14px; overflow-wrap: anywhere; }
+
+    .chat-wrap {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+    }
+
+    .chat-header {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: rgba(6, 13, 20, 0.5);
+    }
+
+    .msg {
+      max-width: 85%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 13px;
+      line-height: 1.35;
+      background: #131f2b;
+    }
+
+    .msg.admin {
+      align-self: flex-end;
+      background: linear-gradient(135deg, rgba(0, 212, 154, 0.23), rgba(20, 184, 212, 0.26));
+      border-color: rgba(20, 184, 212, 0.38);
+    }
+
+    .msg.rider { align-self: flex-start; }
+    .msg-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+
+    .chat-input {
+      border-top: 1px solid var(--border);
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      background: rgba(10, 16, 22, 0.8);
+      min-width: 0;
+    }
+
+    .chat-input textarea {
+      resize: vertical;
+      min-height: 48px;
+      max-height: 140px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0f1822;
+      color: var(--text);
+      padding: 10px;
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 28px 18px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .counter {
+      margin-left: 6px;
+      min-width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      font-size: 11px;
+      color: #071017;
+      background: var(--warn);
+      font-weight: 700;
+      padding: 0 6px;
+    }
+
+    @media (max-width: 1180px) {
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .layout {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "riders details"
+          "chat chat";
+      }
+      .layout .panel:nth-child(1) { grid-area: riders; }
+      .layout .panel:nth-child(2) { grid-area: details; }
+      .layout .panel:nth-child(3) { grid-area: chat; min-height: 56vh; }
+    }
+
+    @media (max-width: 860px) {
+      .page { padding: 14px; }
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "riders"
+          "details"
+          "chat";
+      }
+      .panel { min-height: 40vh; }
+      .rider-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .field input,
+      .search,
+      .chat-input textarea {
+        font-size: 16px;
+      }
+
+      .chat-input {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-input .btn.primary {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="topbar">
+      <div class="brand">
+        <h1>Admin Rider Command</h1>
+        <p>Approve and reject registrations, inspect full rider records, and chat in real time.</p>
+      </div>
+      <div class="top-actions">
+        <div class="badge"><span id="socketDot" class="status-dot"></span> <span id="socketLabel">Realtime offline</span></div>
+        <button id="refreshBtn" class="btn" type="button">Refresh</button>
+        <button id="logoutBtn" class="btn danger" type="button">Logout</button>
+      </div>
+    </div>
+
+    <section id="statsRow" class="stats" style="display:none">
+      <article class="stat-card"><span>Total Orders</span><strong id="statOrders">0</strong></article>
+      <article class="stat-card"><span>Total Revenue</span><strong id="statRevenue">GHS 0</strong></article>
+      <article class="stat-card"><span>Total Riders</span><strong id="statRiders">0</strong></article>
+      <article class="stat-card"><span>Pending Riders</span><strong id="statPending">0</strong></article>
+      <article class="stat-card"><span>Total Products</span><strong id="statProducts">0</strong></article>
+    </section>
+
+    <section id="loginCard" class="login-card visible">
+      <h2>Admin Sign In</h2>
+      <p>Use your existing admin credentials to open the rider management dashboard.</p>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" autocomplete="username" placeholder="admin username" />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" placeholder="password" />
+      </div>
+      <p id="loginError" class="error-msg"></p>
+      <button id="loginBtn" class="btn primary" type="button">Login</button>
+    </section>
+
+    <section id="dashboardLayout" class="layout">
+      <article class="panel">
+        <header class="panel-head">
+          <h2 class="panel-title">Rider Registrations</h2>
+          <input id="riderSearch" class="search" placeholder="Search name, phone, card or license" />
+        </header>
+        <div id="riderList" class="rider-list"></div>
+      </article>
+
+      <article class="panel">
+        <header class="panel-head">
+          <h2 class="panel-title">Full Rider Details</h2>
+          <span id="selectedStatus" class="badge">No rider selected</span>
+        </header>
+        <div id="riderDetails" class="details">
+          <div class="empty">Select a rider and click View to load complete registration details.</div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="chat-wrap">
+          <div class="chat-header">
+            <span id="chatTitle">Direct Rider Chat</span>
+            <span id="chatHint">Select a rider to open live chat</span>
+          </div>
+          <div id="chatMessages" class="chat-messages">
+            <div class="empty">No active rider chat. Use the Chat button on a rider card.</div>
+          </div>
+          <div class="chat-input">
+            <textarea id="chatInput" placeholder="Write to rider..."></textarea>
+            <button id="sendBtn" class="btn primary" type="button" disabled>Send</button>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+  <script src="admin-dashboard.js?v=20260414-7"></script>
+</body>
+</html>

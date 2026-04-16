@@ -115,14 +115,12 @@ async function ensureApiResolved(force = false) {
       activeApiBaseUrl = discovered;
       apiDiscoveryComplete = true;
       localStorage.setItem('adminApiUrl', discovered);
-      apiEndpointEl.textContent = discovered;
       return discovered;
     }
   }
 
   apiDiscoveryComplete = true;
   activeApiBaseUrl = normalizeApiBaseUrl(API_URL);
-  apiEndpointEl.textContent = activeApiBaseUrl || API_URL;
   return activeApiBaseUrl;
 }
 
@@ -150,7 +148,11 @@ const totalProductsEl = document.getElementById('total-products');
 const totalRidersEl = document.getElementById('total-riders');
 const pendingRidersEl = document.getElementById('pending-riders');
 const totalRevenueEl = document.getElementById('total-revenue');
-const apiEndpointEl = document.getElementById('api-endpoint');
+const lowStockCountEl = document.getElementById('low-stock-count');
+const lowStockThresholdEl = document.getElementById('low-stock-threshold');
+const lowStockListEl = document.getElementById('low-stock-list');
+const restockEmptyEl = document.getElementById('restock-empty');
+const restockCountEl = document.getElementById('restock-count');
 const apiHealthEl = document.getElementById('api-health');
 const lastSyncEl = document.getElementById('last-sync');
 
@@ -248,7 +250,7 @@ const entityConfigs = {
       {
         key: 'stock',
         label: 'Stock',
-        render: (p) => escapeHtml(p.stock ?? '-')
+        render: (p) => stockCell(p.stock)
       }
     ],
     fields: [
@@ -982,6 +984,96 @@ function productImageCell(imageUrl, name) {
   const safeUrl = escapeHtml(imageUrl);
   const safeName = escapeHtml(name || 'Product image');
   return `<img class="table-product-image" src="${safeUrl}" alt="${safeName}" onerror="this.replaceWith(document.createTextNode('-'))">`;
+}
+
+function stockCell(stockValue) {
+  const stock = Number(stockValue ?? 0);
+  const safeStock = Number.isFinite(stock) ? stock : 0;
+  let tone = 'stock-ok';
+  let label = 'In Stock';
+
+  if (safeStock <= 0) {
+    tone = 'stock-out';
+    label = 'Out';
+  } else if (safeStock <= 5) {
+    tone = 'stock-low';
+    label = 'Low';
+  }
+
+  return `<span class="stock-cell"><strong>${escapeHtml(String(safeStock))}</strong><span class="stock-pill ${tone}">${escapeHtml(label)}</span></span>`;
+}
+
+function normalizeLowStockAlerts(payload) {
+  const data = payload || {};
+  const lowStockThreshold = Number(data.lowStockThreshold ?? 5);
+  const list = Array.isArray(data.lowStockAlerts)
+    ? data.lowStockAlerts
+    : Array.isArray(data.alerts)
+      ? data.alerts
+      : [];
+
+  const lowStockAlerts = list.map((item) => ({
+    productId: item.productId || item._id || item.id || '',
+    name: String(item.name || 'Unnamed product'),
+    stock: Number(item.stock ?? 0),
+    status: String(item.status || (Number(item.stock ?? 0) <= 0 ? 'out_of_stock' : 'low_stock'))
+  }));
+
+  return {
+    lowStockThreshold: Number.isFinite(lowStockThreshold) ? lowStockThreshold : 5,
+    lowStockAlerts,
+    lowStockCount: Number(data.lowStockCount ?? lowStockAlerts.length)
+  };
+}
+
+function renderLowStockPanel(stats = {}) {
+  const normalized = normalizeLowStockAlerts(stats);
+  const threshold = normalized.lowStockThreshold;
+  const alerts = normalized.lowStockAlerts;
+  const count = Number.isFinite(normalized.lowStockCount) ? normalized.lowStockCount : alerts.length;
+
+  if (lowStockCountEl) lowStockCountEl.textContent = String(count);
+  if (lowStockThresholdEl) lowStockThresholdEl.textContent = String(threshold);
+  if (restockCountEl) restockCountEl.textContent = String(count);
+
+  if (!lowStockListEl || !restockEmptyEl) return;
+
+  if (!alerts.length) {
+    lowStockListEl.innerHTML = '';
+    restockEmptyEl.style.display = 'block';
+    return;
+  }
+
+  const severityForItem = (stockValue) => {
+    const stock = Number(stockValue ?? 0);
+    if (stock <= 0) return { key: 'critical', label: 'Critical' };
+    if (stock <= Math.max(1, Math.floor(threshold / 2))) return { key: 'high', label: 'High' };
+    return { key: 'medium', label: 'Medium' };
+  };
+
+  restockEmptyEl.style.display = 'none';
+  lowStockListEl.innerHTML = alerts
+    .sort((a, b) => Number(a.stock) - Number(b.stock) || String(a.name).localeCompare(String(b.name)))
+    .map((item, index) => {
+      const stock = Number(item.stock ?? 0);
+      const statusText = String(item.status || '').toLowerCase() === 'out_of_stock' ? 'Out of stock' : 'Low stock';
+      const severity = severityForItem(stock);
+      const suggestedRestockQty = Math.max(1, threshold * 2 - stock);
+      return `
+        <li class="restock-item">
+          <div class="restock-item-main">
+            <span class="restock-priority-rank">${escapeHtml(String(index + 1))}</span>
+            <div>
+              <div class="restock-item-name">${escapeHtml(item.name)}</div>
+              <div class="restock-item-meta">${escapeHtml(statusText)} · threshold ${escapeHtml(String(threshold))} · suggested +${escapeHtml(String(suggestedRestockQty))}</div>
+              <span class="restock-severity ${escapeHtml(severity.key)}">${escapeHtml(severity.label)} Priority</span>
+            </div>
+          </div>
+          <div class="restock-item-stock">Stock: ${escapeHtml(String(stock))}</div>
+        </li>
+      `;
+    })
+    .join('');
 }
 
 function rowActionsCell(item) {
@@ -1737,7 +1829,7 @@ async function verifyBackendConnection() {
     setLastSyncNow();
     return true;
   } catch (err) {
-    loginError.textContent = `Cannot reach backend (${activeApiBaseUrl || API_URL}). Check deployed backend URL/CORS or pass ?api=https://your-backend-domain.`;
+    loginError.textContent = 'Cannot reach backend. Check backend availability/CORS or pass ?api=https://your-backend-domain.';
     console.error('Backend connection error:', err);
     setApiStatus(false);
     return false;
@@ -1771,7 +1863,6 @@ async function attemptAdminLoginAcrossCandidates(username, password) {
         activeApiBaseUrl = base;
         apiDiscoveryComplete = true;
         localStorage.setItem('adminApiUrl', base);
-        if (apiEndpointEl) apiEndpointEl.textContent = base;
         return { ok: true, token: parsed.token };
       }
 
@@ -1833,6 +1924,7 @@ function updateStatsUi(data) {
   totalRidersEl.textContent = data.totalRiders || 0;
   pendingRidersEl.textContent = data.pendingRiders || 0;
   totalRevenueEl.textContent = `GHS ${(data.totalRevenue || 0).toFixed(2)}`;
+  renderLowStockPanel(data);
 }
 
 async function fetchStatsFallback(token) {
@@ -1840,22 +1932,24 @@ async function fetchStatsFallback(token) {
     await ensureApiResolved();
     const headers = authHeaders(token);
 
-    const [ordersRes, productsRes, ridersRes] = await Promise.all([
+    const [ordersRes, productsRes, ridersRes, alertsRes] = await Promise.all([
       fetch(apiUrl('/api/orders'), { method: 'GET', headers }),
       fetch(apiUrl('/api/products'), { method: 'GET', headers }),
-      fetch(apiUrl('/api/admin/riders'), { method: 'GET', headers })
+      fetch(apiUrl('/api/admin/riders'), { method: 'GET', headers }),
+      fetch(apiUrl('/api/admin/products/alerts'), { method: 'GET', headers })
     ]);
 
-    if ([ordersRes, productsRes, ridersRes].some((res) => res.status === 401)) {
+    if ([ordersRes, productsRes, ridersRes, alertsRes].some((res) => res.status === 401)) {
       clearAuthToken();
       showLogin();
       return;
     }
 
-    const [ordersRaw, productsRaw, ridersRaw] = await Promise.all([
+    const [ordersRaw, productsRaw, ridersRaw, alertsRaw] = await Promise.all([
       ordersRes.ok ? ordersRes.json() : Promise.resolve([]),
       productsRes.ok ? productsRes.json() : Promise.resolve([]),
-      ridersRes.ok ? ridersRes.json() : Promise.resolve([])
+      ridersRes.ok ? ridersRes.json() : Promise.resolve([]),
+      alertsRes.ok ? alertsRes.json() : Promise.resolve({})
     ]);
 
     const orders = extractCollection(ordersRaw);
@@ -1864,12 +1958,33 @@ async function fetchStatsFallback(token) {
 
     const totalRevenue = orders.reduce((sum, order) => sum + (Number(order.amount) || 0), 0);
 
+    const fallbackThreshold = 5;
+    const derivedAlerts = products
+      .filter((product) => Number(product?.stock ?? 0) <= fallbackThreshold)
+      .map((product) => ({
+        productId: product._id || product.id || '',
+        name: product.name || 'Unnamed product',
+        stock: Number(product.stock ?? 0),
+        status: Number(product.stock ?? 0) <= 0 ? 'out_of_stock' : 'low_stock'
+      }));
+
+    const normalizedAlerts = alertsRes.ok
+      ? normalizeLowStockAlerts(alertsRaw)
+      : {
+          lowStockThreshold: fallbackThreshold,
+          lowStockCount: derivedAlerts.length,
+          lowStockAlerts: derivedAlerts
+        };
+
     updateStatsUi({
       totalOrders: orders.length,
       totalProducts: products.length,
       totalRiders: riders.length,
       pendingRiders: riders.filter((r) => String(r.status || '').toLowerCase() === 'pending').length,
-      totalRevenue
+      totalRevenue,
+      lowStockThreshold: normalizedAlerts.lowStockThreshold,
+      lowStockCount: normalizedAlerts.lowStockCount,
+      lowStockAlerts: normalizedAlerts.lowStockAlerts
     });
     setApiStatus(true);
     setLastSyncNow();
@@ -2203,7 +2318,6 @@ setInterval(() => {
 window.addEventListener('DOMContentLoaded', async () => {
   // Zero-trust: never trust a persistent token from previous browser sessions.
   localStorage.removeItem('adminToken');
-  if (apiEndpointEl) apiEndpointEl.textContent = API_URL;
   applySavedPreferences();
   hideGlobalNotice();
   loadAuditLogs();

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Dashboard - Global Sports</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23121c26'/%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='%2300d49a' stroke-width='4'/%3E%3Ctext x='32' y='39' text-anchor='middle' font-family='Arial,Helvetica,sans-serif' font-size='22' font-weight='700' fill='%23e8f0f7'%3EGS%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,7 +26,14 @@
     <div id="dashboard-section" class="dashboard" style="display: none;">
       <div class="header">
         <h1>Global Sports Admin Dashboard</h1>
-        <button id="logout-btn" class="logout-btn">Logout</button>
+        <div class="header-actions">
+          <button id="retry-connection-btn" class="secondary-btn" type="button">Retry Connection</button>
+          <button id="logout-btn" class="logout-btn">Logout</button>
+        </div>
+      </div>
+
+      <div class="ops-strip" aria-label="System status">
+        <span id="api-health" class="health-dot offline">Offline</span>
       </div>
 
       <div class="stats-container">
@@ -49,16 +57,177 @@
           <h3>Total Revenue</h3>
           <p class="stat-value" id="total-revenue">-</p>
         </div>
+        <div class="stat-card low-stock-card">
+          <h3>Low Stock Items</h3>
+          <p class="stat-value" id="low-stock-count">-</p>
+          <p class="stat-subvalue">Threshold: <span id="low-stock-threshold">-</span></p>
+        </div>
       </div>
 
       <div class="action-buttons">
         <button id="manage-products-btn" class="action-btn">Manage Products</button>
         <button id="manage-riders-btn" class="action-btn">Manage Riders</button>
         <button id="manage-orders-btn" class="action-btn">View Orders</button>
+        <button id="manage-chat-btn" class="action-btn">💬 Chat with Riders <span id="manage-chat-badge" class="action-count-badge" style="display:none;">0</span></button>
+        <button id="pending-registrations-btn" class="action-btn">📋 Pending Registrations <span id="pending-badge" style="display:none;"></span></button>
+      </div>
+
+      <div class="restock-panel" id="restock-panel" aria-live="polite">
+        <div class="restock-head">
+          <h3>Restock Alerts</h3>
+          <span class="restock-count" id="restock-count">0</span>
+        </div>
+        <p class="restock-priority-note">Priority order: top items need restock first.</p>
+        <p class="restock-empty" id="restock-empty">No low-stock alerts right now.</p>
+        <ul class="restock-list" id="low-stock-list"></ul>
+      </div>
+
+      <div id="management-panel" class="management-panel" style="display: none;">
+        <div class="management-header">
+          <h2 id="management-title">Management</h2>
+          <div class="panel-header-actions">
+            <button id="refresh-panel-btn" class="secondary-btn">Refresh</button>
+            <button id="close-panel-btn" class="close-panel-btn">Close</button>
+          </div>
+        </div>
+
+        <div class="management-toolbar">
+          <input id="management-search" type="text" placeholder="Search by name, phone, category or status..." aria-label="Search current table">
+          <button id="add-item-btn" class="primary-btn">+ Add New</button>
+          <button id="columns-btn" type="button" class="secondary-btn">Columns</button>
+          <div id="column-menu" class="column-menu" style="display:none"></div>
+        </div>
+
+        <div id="order-filter-bar" class="order-filter-bar" style="display:none"></div>
+
+        <div id="bulk-actions" class="bulk-actions" style="display: none;">
+          <span id="selected-count">0 selected</span>
+          <button id="bulk-delete-btn" class="row-btn delete" type="button">Delete Selected</button>
+          <select id="bulk-status-select">
+            <option value="">Change status...</option>
+          </select>
+          <button id="bulk-status-btn" class="row-btn edit" type="button">Apply Status</button>
+        </div>
+
+        <p id="management-message" class="management-message" style="display: none;" role="status" aria-live="polite"></p>
+        <div class="table-wrapper">
+          <table class="management-table">
+            <caption id="table-caption" class="sr-only">Management records table</caption>
+            <thead id="management-table-head"></thead>
+            <tbody id="management-table-body"></tbody>
+          </table>
+        </div>
+
+        <div id="pagination" class="pagination" style="display: none;">
+          <button id="prev-page-btn" type="button" class="secondary-btn">Previous</button>
+          <span id="pagination-info">Page 1 of 1</span>
+          <button id="next-page-btn" type="button" class="secondary-btn">Next</button>
+        </div>
+
+        <div class="audit-panel">
+          <h3>Recent Activity</h3>
+          <ul id="audit-log-list"></ul>
+        </div>
+
+        <!-- Chat Panel -->
+        <div id="chat-panel" class="chat-panel" style="display: none;">
+          <div class="chat-header">
+            <h3>Live Chat with Riders</h3>
+            <div class="connection-status">
+              <span id="chat-status-dot" class="status-dot"></span>
+              <span id="chat-status-text">Offline</span>
+            </div>
+          </div>
+
+          <div class="chat-container">
+            <div class="riders-sidebar">
+              <input id="chat-rider-search" type="text" placeholder="Search riders by name or phone..." class="rider-search">
+              <div id="chat-riders-list" class="riders-list">
+                <p class="empty-state">No riders available. Select riders from management first.</p>
+              </div>
+            </div>
+
+            <div class="chat-main">
+              <div id="no-rider-selected" class="no-rider-selected">
+                <p>Select a rider from the list to start chatting</p>
+              </div>
+
+              <div id="chat-content" class="chat-content" style="display: none;">
+                <div class="chat-header-info">
+                  <h4 id="chat-with-name">Direct Chat</h4>
+                  <span id="chat-rider-status" class="rider-status">Offline</span>
+                </div>
+                
+                <div id="chat-messages" class="chat-messages">
+                  <div class="empty-state">No messages yet. Start the conversation!</div>
+                </div>
+
+                <div class="chat-input-area">
+                  <textarea 
+                    id="chat-message-input" 
+                    placeholder="Type your message..." 
+                    rows="2"
+                    maxlength="1000"></textarea>
+                  <button id="chat-send-btn" class="primary-btn">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pending Registrations Panel -->
+        <div id="registrations-panel" class="registrations-panel" style="display: none;">
+          <div class="registrations-header">
+            <div>
+              <h3>Pending Rider Registrations</h3>
+              <p class="registrations-subtitle">Review and approve/reject new rider applications in real-time</p>
+            </div>
+            <div class="registrations-status">
+              <span id="reg-status-dot" class="status-dot"></span>
+              <span id="reg-status-text">Listening...</span>
+            </div>
+          </div>
+
+          <div id="registrations-list" class="registrations-list">
+            <div class="empty-state">Loading pending registrations...</div>
+          </div>
+
+          <div id="registrations-notification" class="registrations-notification" style="display: none;">
+            <div class="notification-content">
+              <span id="notification-message">New rider application received</span>
+              <button id="notification-close" class="notification-close">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="global-notice" class="global-notice" style="display:none" role="status" aria-live="polite">
+        <span id="global-notice-text"></span>
+        <button id="global-notice-close" type="button" aria-label="Close notification">x</button>
       </div>
     </div>
   </div>
 
+  <div id="editor-modal" class="editor-modal" style="display: none;">
+    <div class="editor-card">
+      <div class="editor-header">
+        <h3 id="editor-title">Edit Item</h3>
+        <button id="close-editor-btn" class="close-editor-btn">x</button>
+      </div>
+      <form id="editor-form" class="editor-form"></form>
+      <div id="image-preview-wrap" class="image-preview-wrap" style="display: none;">
+        <p>Image Preview</p>
+        <img id="image-preview" alt="Product preview">
+      </div>
+      <p id="editor-error" class="error" style="display: none;"></p>
+      <div class="editor-actions">
+        <button id="cancel-editor-btn" type="button" class="secondary-btn">Cancel</button>
+        <button id="save-editor-btn" type="button" class="primary-btn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>
