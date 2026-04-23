@@ -68,6 +68,7 @@
         <button id="manage-products-btn" class="action-btn">Manage Products</button>
         <button id="manage-riders-btn" class="action-btn">Manage Riders</button>
         <button id="manage-orders-btn" class="action-btn">View Orders</button>
+        <button id="manage-campaigns-btn" class="action-btn">Campaign Manager</button>
         <button id="manage-chat-btn" class="action-btn">💬 Chat with Riders <span id="manage-chat-badge" class="action-count-badge" style="display:none;">0</span></button>
         <button id="pending-registrations-btn" class="action-btn">📋 Pending Registrations <span id="pending-badge" style="display:none;"></span></button>
       </div>
@@ -127,6 +128,38 @@
         <div class="audit-panel">
           <h3>Recent Activity</h3>
           <ul id="audit-log-list"></ul>
+        </div>
+
+        <div id="campaign-panel" class="campaign-panel" style="display: none;">
+          <div class="campaign-header">
+            <div>
+              <h3>Homepage Campaign Ticker</h3>
+              <p>One message per line. Changes appear on the storefront ticker shortly after saving.</p>
+            </div>
+            <div class="campaign-meta">
+              <span id="campaign-source" class="campaign-pill">Source: default</span>
+              <span id="campaign-updated" class="campaign-updated">Last updated: -</span>
+            </div>
+          </div>
+
+          <label class="campaign-label" for="campaign-messages-input">Campaign messages</label>
+          <textarea id="campaign-messages-input" class="campaign-input" rows="8" placeholder="Weekend campaign: up to 20% off selected kits&#10;Free same-day delivery for Kumasi orders above GHS 300"></textarea>
+
+          <div class="campaign-preview-wrap">
+            <div class="campaign-preview-label">Live ticker preview</div>
+            <div class="campaign-preview-strip" aria-label="Campaign ticker preview">
+              <div id="campaign-preview-track" class="campaign-preview-track">
+                <span>Enter campaign messages to preview ticker</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="campaign-actions">
+            <button id="campaign-reset-btn" class="secondary-btn" type="button">Reload</button>
+            <button id="campaign-save-btn" class="primary-btn" type="button">Save Campaign Messages</button>
+          </div>
+
+          <p id="campaign-status" class="campaign-status" style="display:none" role="status" aria-live="polite"></p>
         </div>
 
         <!-- Chat Panel -->
