@@ -159,6 +159,7 @@ const lastSyncEl = document.getElementById('last-sync');
 const manageProductsBtn = document.getElementById('manage-products-btn');
 const manageRidersBtn = document.getElementById('manage-riders-btn');
 const manageOrdersBtn = document.getElementById('manage-orders-btn');
+const manageCampaignsBtn = document.getElementById('manage-campaigns-btn');
 const managementPanel = document.getElementById('management-panel');
 const managementTitle = document.getElementById('management-title');
 const managementMessage = document.getElementById('management-message');
@@ -181,6 +182,14 @@ const prevPageBtn = document.getElementById('prev-page-btn');
 const nextPageBtn = document.getElementById('next-page-btn');
 const paginationInfo = document.getElementById('pagination-info');
 const auditLogList = document.getElementById('audit-log-list');
+const campaignPanel = document.getElementById('campaign-panel');
+const campaignSourceEl = document.getElementById('campaign-source');
+const campaignUpdatedEl = document.getElementById('campaign-updated');
+const campaignMessagesInput = document.getElementById('campaign-messages-input');
+const campaignPreviewTrack = document.getElementById('campaign-preview-track');
+const campaignResetBtn = document.getElementById('campaign-reset-btn');
+const campaignSaveBtn = document.getElementById('campaign-save-btn');
+const campaignStatusEl = document.getElementById('campaign-status');
 const globalNotice = document.getElementById('global-notice');
 const globalNoticeText = document.getElementById('global-notice-text');
 const globalNoticeClose = document.getElementById('global-notice-close');
@@ -1531,6 +1540,7 @@ function setManagementView(mode) {
   const showTable = mode === 'table';
   const showChat = mode === 'chat';
   const showRegistrations = mode === 'registrations';
+  const showCampaigns = mode === 'campaigns';
 
   managementPanel.style.display = 'block';
   if (header) header.style.display = showTable ? 'flex' : 'none';
@@ -1552,6 +1562,173 @@ function setManagementView(mode) {
 
   if (chatPanel) chatPanel.style.display = showChat ? 'block' : 'none';
   if (registrationsPanel) registrationsPanel.style.display = showRegistrations ? 'flex' : 'none';
+  if (campaignPanel) campaignPanel.style.display = showCampaigns ? 'block' : 'none';
+}
+
+function normalizeCampaignMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  const cleaned = messages
+    .map((message) => String(message || '').trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .map((message) => message.slice(0, 140));
+  return [...new Set(cleaned)];
+}
+
+function renderCampaignPreview(messages) {
+  if (!campaignPreviewTrack) return;
+  const normalized = normalizeCampaignMessages(messages);
+  if (!normalized.length) {
+    campaignPreviewTrack.innerHTML = '<span>Enter campaign messages to preview ticker</span>';
+    return;
+  }
+
+  const loopItems = [...normalized, ...normalized];
+  campaignPreviewTrack.innerHTML = loopItems
+    .map((message) => `<span>${escapeHtml(message)}</span>`)
+    .join('');
+}
+
+function setCampaignStatus(message = '', type = '') {
+  if (!campaignStatusEl) return;
+  if (!message) {
+    campaignStatusEl.textContent = '';
+    campaignStatusEl.className = 'campaign-status';
+    campaignStatusEl.style.display = 'none';
+    return;
+  }
+  campaignStatusEl.textContent = message;
+  campaignStatusEl.className = `campaign-status ${type || ''}`.trim();
+  campaignStatusEl.style.display = 'block';
+}
+
+function setCampaignBusy(isBusy) {
+  if (campaignSaveBtn) campaignSaveBtn.disabled = isBusy;
+  if (campaignResetBtn) campaignResetBtn.disabled = isBusy;
+  if (campaignMessagesInput) campaignMessagesInput.disabled = isBusy;
+}
+
+function fillCampaignEditor(payload) {
+  const messages = normalizeCampaignMessages(payload?.messages || []);
+  if (campaignMessagesInput) {
+    campaignMessagesInput.value = messages.join('\n');
+  }
+  renderCampaignPreview(messages);
+
+  if (campaignSourceEl) {
+    const source = String(payload?.source || 'default').toLowerCase() === 'admin' ? 'admin' : 'default';
+    campaignSourceEl.textContent = `Source: ${source}`;
+  }
+
+  if (campaignUpdatedEl) {
+    const updatedAt = payload?.updatedAt ? formatDateSafe(payload.updatedAt) : '-';
+    const by = payload?.updatedBy ? ` by ${payload.updatedBy}` : '';
+    campaignUpdatedEl.textContent = `Last updated: ${updatedAt}${by}`;
+  }
+}
+
+async function loadCampaignMessages() {
+  const token = getAuthToken();
+  if (!token) {
+    clearAuthToken();
+    showLogin();
+    return;
+  }
+
+  setCampaignBusy(true);
+  setCampaignStatus('Loading campaign settings...', '');
+
+  try {
+    const result = await requestWithFallback({
+      paths: [
+        '/api/admin/campaign/messages',
+        '/api/admin/campaigns/messages',
+        '/api/campaign/messages'
+      ],
+      method: 'GET',
+      requiresAuth: false,
+      includeAuthIfAvailable: true
+    });
+
+    if (!result.ok) {
+      const rawMsg = result.data?.message || 'Could not load campaign settings.';
+      const msg = /Endpoint not available/i.test(String(rawMsg))
+        ? 'Campaign API is not available on the current backend. Deploy the latest backend server to enable campaign management.'
+        : rawMsg;
+      setCampaignStatus(msg, 'error');
+      showGlobalNotice(msg, 'error');
+      return;
+    }
+
+    fillCampaignEditor(result.data || {});
+    setCampaignStatus('Campaign settings loaded.', 'success');
+  } catch (err) {
+    const msg = err?.message || 'Could not load campaign settings.';
+    setCampaignStatus(msg, 'error');
+    showGlobalNotice(msg, 'error');
+  } finally {
+    setCampaignBusy(false);
+  }
+}
+
+async function saveCampaignMessages() {
+  const token = getAuthToken();
+  if (!token) {
+    clearAuthToken();
+    showLogin();
+    return;
+  }
+
+  const messages = normalizeCampaignMessages(
+    String(campaignMessagesInput?.value || '')
+      .split(/\r?\n/g)
+  );
+
+  if (!messages.length) {
+    setCampaignStatus('Please provide at least one campaign message.', 'error');
+    return;
+  }
+
+  setCampaignBusy(true);
+  setCampaignStatus('Saving campaign settings...', '');
+
+  try {
+    const result = await requestWithFallback({
+      paths: [
+        '/api/admin/campaign/messages',
+        '/api/admin/campaigns/messages'
+      ],
+      method: 'PUT',
+      payload: { messages },
+      requiresAuth: true
+    });
+
+    if (!result.ok) {
+      const rawMsg = result.data?.message || 'Could not save campaign settings.';
+      const msg = /Endpoint not available/i.test(String(rawMsg))
+        ? 'Save failed because this backend does not yet support campaign updates. Deploy/restart backend with campaign routes.'
+        : rawMsg;
+      setCampaignStatus(msg, 'error');
+      showGlobalNotice(msg, 'error');
+      return;
+    }
+
+    fillCampaignEditor(result.data || {});
+    setCampaignStatus('Campaign settings saved successfully.', 'success');
+    showGlobalNotice('Campaign settings updated.', 'success');
+    addAuditLog('UPDATE', 'campaigns', `${messages.length} campaign message(s)`);
+  } catch (err) {
+    const msg = err?.message || 'Could not save campaign settings.';
+    setCampaignStatus(msg, 'error');
+    showGlobalNotice(msg, 'error');
+  } finally {
+    setCampaignBusy(false);
+  }
+}
+
+async function showCampaignManager() {
+  setManagementView('campaigns');
+  await loadCampaignMessages();
 }
 
 async function loadEntity(entityKey) {
@@ -2079,6 +2256,41 @@ if (retryConnectionBtn) {
 manageProductsBtn.addEventListener('click', () => loadEntity('products'));
 manageRidersBtn.addEventListener('click', () => loadEntity('riders'));
 manageOrdersBtn.addEventListener('click', () => loadEntity('orders'));
+if (manageCampaignsBtn) {
+  manageCampaignsBtn.addEventListener('click', async () => {
+    const chatPanel = document.getElementById('chat-panel');
+    if (chatPanel) chatPanel.style.display = 'none';
+    const regPanel = document.getElementById('registrations-panel');
+    if (regPanel) regPanel.style.display = 'none';
+
+    if (registrationState.pollTimer) {
+      clearInterval(registrationState.pollTimer);
+      registrationState.pollTimer = null;
+    }
+
+    await showCampaignManager();
+  });
+}
+
+if (campaignResetBtn) {
+  campaignResetBtn.addEventListener('click', () => {
+    loadCampaignMessages();
+  });
+}
+
+if (campaignSaveBtn) {
+  campaignSaveBtn.addEventListener('click', () => {
+    saveCampaignMessages();
+  });
+}
+
+if (campaignMessagesInput) {
+  campaignMessagesInput.addEventListener('input', () => {
+    const messages = String(campaignMessagesInput.value || '')
+      .split(/\r?\n/g);
+    renderCampaignPreview(messages);
+  });
+}
 
 const manageChatBtn = document.getElementById('manage-chat-btn');
 if (manageChatBtn) {
