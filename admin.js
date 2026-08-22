@@ -159,6 +159,7 @@ const lastSyncEl = document.getElementById('last-sync');
 const manageProductsBtn = document.getElementById('manage-products-btn');
 const manageRidersBtn = document.getElementById('manage-riders-btn');
 const manageOrdersBtn = document.getElementById('manage-orders-btn');
+const managePromotionsBtn = document.getElementById('manage-promotions-btn');
 const managementPanel = document.getElementById('management-panel');
 const managementTitle = document.getElementById('management-title');
 const managementMessage = document.getElementById('management-message');
@@ -392,8 +393,86 @@ const entityConfigs = {
         required: true
       }
     ]
+  },
+  promotions: {
+    title: 'Promotions',
+    searchKeys: ['title', 'description', 'productIds', 'discountPercent', 'discountPrice'],
+    listPaths: ['/api/admin/promotions'],
+    createPaths: ['/api/admin/promotions'],
+    updatePaths: (id) => [`/api/admin/promotions/${id}`],
+    deletePaths: (id) => [`/api/admin/promotions/${id}`],
+    canCreate: true,
+    canEdit: true,
+    canDelete: true,
+    columns: [
+      {
+        key: 'title',
+        label: 'Title',
+        render: (promo) => escapeHtml(promo.title || 'Untitled promotion')
+      },
+      {
+        key: 'description',
+        label: 'Description',
+        render: (promo) => escapeHtml((promo.description || '').slice(0, 80) || 'No description')
+      },
+      {
+        key: 'discount',
+        label: 'Offer',
+        render: (promo) => {
+          const percent = Number(promo.discountPercent || 0);
+          const price = Number(promo.discountPrice || 0);
+          if (percent > 0) return `${escapeHtml(String(percent))}% off`;
+          if (price > 0) return `GHS ${escapeHtml(Number(price).toFixed(2))}`;
+          return 'Standard';
+        }
+      },
+      {
+        key: 'products',
+        label: 'Products',
+        render: (promo) => {
+          const ids = Array.isArray(promo.productIds) ? promo.productIds : [];
+          return escapeHtml(ids.length ? ids.join(', ') : 'All products');
+        }
+      },
+      {
+        key: 'active',
+        label: 'Status',
+        render: (promo) => statusBadge(promo.active ? 'active' : 'inactive')
+      },
+      {
+        key: 'dateRange',
+        label: 'Campaign Period',
+        render: (promo) => {
+          const start = formatDateSafe(promo.startsAt);
+          const end = formatDateSafe(promo.endsAt);
+          return escapeHtml(`${start} → ${end}`);
+        }
+      }
+    ],
+    fields: [
+      { key: 'title', label: 'Title', type: 'text', required: true },
+      { key: 'description', label: 'Description', type: 'textarea', full: true },
+      { key: 'productIds', label: 'Product IDs (comma separated)', type: 'textarea', full: true },
+      { key: 'discountPercent', label: 'Discount %', type: 'number' },
+      { key: 'discountPrice', label: 'Fixed price (GHS)', type: 'number' },
+      { key: 'startsAt', label: 'Starts', type: 'datetime-local' },
+      { key: 'endsAt', label: 'Ends', type: 'datetime-local' },
+      { key: 'pinned', label: 'Pinned highlight', type: 'checkbox' },
+      { key: 'active', label: 'Active', type: 'checkbox' }
+    ]
   }
 };
+
+function formatDateTimeLocal(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
 
 function loadAuditLogs() {
   try {
@@ -777,6 +856,32 @@ function normalizePayload(entityKey, payload) {
     normalized.sizeType = sizeType;
     normalized.sizes = sizes;
     delete normalized.customSizes;
+    return normalized;
+  }
+
+  if (entityKey === 'promotions') {
+    const normalized = { ...payload };
+    const rawProductIds = typeof normalized.productIds === 'string'
+      ? normalized.productIds
+      : Array.isArray(normalized.productIds)
+        ? normalized.productIds.join(',')
+        : '';
+
+    normalized.productIds = String(rawProductIds)
+      .split(',')
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+
+    normalized.discountPercent = Number(normalized.discountPercent || 0);
+    normalized.discountPrice = Number(normalized.discountPrice || 0);
+    normalized.pinned = Boolean(normalized.pinned);
+    normalized.active = Boolean(normalized.active);
+
+    const startsAt = String(normalized.startsAt || '').trim();
+    const endsAt = String(normalized.endsAt || '').trim();
+    normalized.startsAt = startsAt ? new Date(startsAt).toISOString() : new Date().toISOString();
+    normalized.endsAt = endsAt ? new Date(endsAt).toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
     return normalized;
   }
 
@@ -1279,6 +1384,17 @@ function renderEditorForm(entityKey, mode, item = null) {
           value = Array.isArray(item?.sizes) ? item.sizes.join(', ') : '';
         }
       }
+
+      if (entityKey === 'promotions') {
+        if (field.key === 'productIds') {
+          value = Array.isArray(item?.productIds) ? item.productIds.join(', ') : '';
+        }
+
+        if (field.key === 'startsAt' || field.key === 'endsAt') {
+          value = formatDateTimeLocal(item?.[field.key]);
+        }
+      }
+
       const fullClass = field.full ? 'field-group full' : 'field-group';
 
       if (field.type === 'textarea') {
@@ -1384,6 +1500,10 @@ function collectFormData(entityKey) {
   }
 
   return payload;
+}
+
+function isoToDateTimeLocalInput(value) {
+  return formatDateTimeLocal(value);
 }
 
 function findRecordById(id) {
@@ -1613,6 +1733,13 @@ async function handleSaveEditor() {
   const payload = normalizePayload(state.entity, collectFormData(state.entity));
   const isCreate = state.editMode === 'create';
   const id = getItemId(state.editTarget);
+
+  if (state.entity === 'promotions' && payload.productIds && !Array.isArray(payload.productIds)) {
+    payload.productIds = String(payload.productIds)
+      .split(',')
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+  }
 
   let paths = [];
   let method = 'POST';
@@ -2079,6 +2206,9 @@ if (retryConnectionBtn) {
 manageProductsBtn.addEventListener('click', () => loadEntity('products'));
 manageRidersBtn.addEventListener('click', () => loadEntity('riders'));
 manageOrdersBtn.addEventListener('click', () => loadEntity('orders'));
+if (managePromotionsBtn) {
+  managePromotionsBtn.addEventListener('click', () => loadEntity('promotions'));
+}
 
 const manageChatBtn = document.getElementById('manage-chat-btn');
 if (manageChatBtn) {
