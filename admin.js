@@ -92,7 +92,7 @@ async function probeApiBaseUrl(baseUrl) {
   for (const candidate of candidates) {
     try {
       const response = await fetch(candidate, { method: 'GET' });
-      if (response.ok) {
+      if (response.ok || response.status === 503) {
         return normalized;
       }
     } catch {
