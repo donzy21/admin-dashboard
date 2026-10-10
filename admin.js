@@ -160,6 +160,7 @@ const manageProductsBtn = document.getElementById('manage-products-btn');
 const manageRidersBtn = document.getElementById('manage-riders-btn');
 const manageOrdersBtn = document.getElementById('manage-orders-btn');
 const managePromotionsBtn = document.getElementById('manage-promotions-btn');
+const accountBtn = document.getElementById('account-btn');
 const managementPanel = document.getElementById('management-panel');
 const managementTitle = document.getElementById('management-title');
 const managementMessage = document.getElementById('management-message');
@@ -195,6 +196,12 @@ const cancelEditorBtn = document.getElementById('cancel-editor-btn');
 const saveEditorBtn = document.getElementById('save-editor-btn');
 const imagePreviewWrap = document.getElementById('image-preview-wrap');
 const imagePreview = document.getElementById('image-preview');
+const accountModal = document.getElementById('account-modal');
+const accountForm = document.getElementById('account-form');
+const accountError = document.getElementById('account-error');
+const accountSuccess = document.getElementById('account-success');
+const closeAccountBtn = document.getElementById('close-account-btn');
+const saveAccountBtn = document.getElementById('save-account-btn');
 
 const state = {
   entity: null,
@@ -435,6 +442,13 @@ const entityConfigs = {
         }
       },
       {
+        key: 'productLink',
+        label: 'Product Link',
+        render: (promo) => promo.productLink
+          ? `<a href="${escapeHtml(promo.productLink)}" target="_blank" rel="noopener">Open link</a>`
+          : '<span>-</span>'
+      },
+      {
         key: 'active',
         label: 'Status',
         render: (promo) => statusBadge(promo.active ? 'active' : 'inactive')
@@ -453,6 +467,8 @@ const entityConfigs = {
       { key: 'title', label: 'Title', type: 'text', required: true },
       { key: 'description', label: 'Description', type: 'textarea', full: true },
       { key: 'productIds', label: 'Product IDs (comma separated)', type: 'textarea', full: true },
+      { key: 'productLink', label: 'Product link', type: 'url', full: true },
+      { key: 'bannerImage', label: 'Image URL', type: 'url', full: true },
       { key: 'discountPercent', label: 'Discount %', type: 'number' },
       { key: 'discountPrice', label: 'Fixed price (GHS)', type: 'number' },
       { key: 'startsAt', label: 'Starts', type: 'datetime-local' },
@@ -1444,12 +1460,18 @@ function renderEditorForm(entityKey, mode, item = null) {
     .join('');
 
   const imageField = editorForm.querySelector('[name="image"]');
-  if (imageField) {
+  const promotionImageField = editorForm.querySelector('[name="bannerImage"]');
+  const productLinkField = editorForm.querySelector('[name="productLink"]');
+  const previewField = imageField || promotionImageField || productLinkField;
+  if (previewField) {
     imagePreviewWrap.style.display = 'block';
-    imagePreview.src = imageField.value || '';
+    const updatePreview = () => {
+      imagePreview.src = (promotionImageField?.value || imageField?.value || productLinkField?.value || '').trim();
+    };
+    updatePreview();
 
-    imageField.addEventListener('input', () => {
-      imagePreview.src = imageField.value || '';
+    [imageField, promotionImageField, productLinkField].filter(Boolean).forEach((field) => {
+      field.addEventListener('input', updatePreview);
     });
 
     imagePreview.onerror = () => {
@@ -2155,6 +2177,74 @@ loginForm.addEventListener('submit', async (e) => {
     console.error(err);
   } finally {
     setLoginBusy(false);
+  }
+});
+
+function closeAccountModal() {
+  accountModal.style.display = 'none';
+  accountForm.reset();
+  accountError.textContent = '';
+  accountError.style.display = 'none';
+  accountSuccess.textContent = '';
+  accountSuccess.style.display = 'none';
+}
+
+accountBtn.addEventListener('click', () => {
+  accountModal.style.display = 'flex';
+  accountForm.querySelector('[name="currentPassword"]').focus();
+});
+
+closeAccountBtn.addEventListener('click', closeAccountModal);
+
+saveAccountBtn.addEventListener('click', async () => {
+  const formData = new FormData(accountForm);
+  const currentPassword = String(formData.get('currentPassword') || '');
+  const username = String(formData.get('username') || '').trim();
+  const newPassword = String(formData.get('newPassword') || '');
+  const confirmPassword = String(formData.get('confirmPassword') || '');
+
+  accountError.textContent = '';
+  accountError.style.display = 'none';
+  accountSuccess.textContent = '';
+  accountSuccess.style.display = 'none';
+
+  if (newPassword !== confirmPassword) {
+    accountError.textContent = 'New passwords do not match.';
+    accountError.style.display = 'block';
+    return;
+  }
+  if (!currentPassword || (!username && !newPassword)) {
+    accountError.textContent = 'Enter your current password and a new username or password.';
+    accountError.style.display = 'block';
+    return;
+  }
+
+  saveAccountBtn.disabled = true;
+  saveAccountBtn.textContent = 'Saving...';
+  try {
+    const result = await requestWithFallback({
+      paths: ['/api/admin/account'],
+      method: 'PUT',
+      payload: { currentPassword, username, newPassword },
+      requiresAuth: true
+    });
+
+    if (!result.ok) {
+      accountError.textContent = result.data?.message || 'Could not update account.';
+      accountError.style.display = 'block';
+      return;
+    }
+
+    setAuthToken(result.data.token);
+    accountSuccess.textContent = 'Account updated successfully.';
+    accountSuccess.style.display = 'block';
+    accountForm.reset();
+  } catch (err) {
+    accountError.textContent = err.message || 'Could not update account.';
+    accountError.style.display = 'block';
+  } finally {
+    saveAccountBtn.disabled = false;
+    saveAccountBtn.textContent = 'Save Account';
   }
 });
 

@@ -69,6 +69,7 @@
         <button id="manage-riders-btn" class="action-btn">Manage Riders</button>
         <button id="manage-orders-btn" class="action-btn">View Orders</button>
         <button id="manage-promotions-btn" class="action-btn">Promotions Manager</button>
+          <button id="account-btn" class="action-btn" type="button">Account Settings</button>
         <button id="manage-chat-btn" class="action-btn">💬 Chat with Riders <span id="manage-chat-badge" class="action-count-badge" style="display:none;">0</span></button>
         <button id="pending-registrations-btn" class="action-btn">📋 Pending Registrations <span id="pending-badge" style="display:none;"></span></button>
       </div>
@@ -225,6 +226,24 @@
         <button id="cancel-editor-btn" type="button" class="secondary-btn">Cancel</button>
         <button id="save-editor-btn" type="button" class="primary-btn">Save Changes</button>
       </div>
+    </div>
+  </div>
+
+  <div id="account-modal" class="editor-modal" style="display: none;">
+    <div class="editor-card">
+      <div class="editor-header">
+        <h3>Account Settings</h3>
+        <button id="close-account-btn" class="close-editor-btn" type="button">x</button>
+      </div>
+      <form id="account-form" class="editor-form">
+        <div class="field-group full"><label for="account-current-password">Current password</label><input id="account-current-password" name="currentPassword" type="password" required></div>
+        <div class="field-group full"><label for="account-username">New username</label><input id="account-username" name="username" type="text" minlength="3"></div>
+        <div class="field-group"><label for="account-new-password">New password</label><input id="account-new-password" name="newPassword" type="password" minlength="6"></div>
+        <div class="field-group"><label for="account-confirm-password">Confirm new password</label><input id="account-confirm-password" name="confirmPassword" type="password" minlength="6"></div>
+      </form>
+      <p id="account-error" class="error" style="display: none;"></p>
+      <p id="account-success" class="success" style="display: none;"></p>
+      <div class="editor-actions"><button id="save-account-btn" type="button" class="primary-btn">Save Account</button></div>
     </div>
   </div>
 
